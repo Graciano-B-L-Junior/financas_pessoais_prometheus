@@ -24,6 +24,23 @@ disable-model-invocation: false
 6. Recomende padrões de design modernos, como hierarquia visual, tipografia e espaçamento.
 7. Garanta que a solução funcione bem em desktop e mobile e que as APIs estejam bem integradas.
 
+## Design tokens recomendados
+- Cores base: fundo claro com gradiente sutil, surface branca, contraste alto no texto.
+- Cores de destaque: 1 cor primaria fria (azul) + 1 acento para indicadores.
+- Tipografia: fonte de titulo com personalidade e fonte de texto legivel.
+- Sombra: blur suave para cards e elevation consistente.
+
+## Layout e composicao
+- Preferir grids com colunas responsivas, cards com raio alto e espacamento generoso.
+- Header com titulo, busca e acoes rapidas.
+- Painel lateral com navegacao curta e estados ativos.
+- Priorizar informacao financeira em cards e graficos de barras.
+
+## Responsividade
+- Quebra em 2 colunas entre 1100px e 900px.
+- Stack completo em mobile com sidebar no topo.
+- Inputs e grids devem virar uma coluna abaixo de 900px.
+
 ## Critérios de qualidade
 - A interface é clara, fácil de usar e acessível.
 - O frontend segue boas práticas de UX e UI.

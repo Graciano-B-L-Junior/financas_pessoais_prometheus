@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { loginUser, setToken } from '../api/financeApi'
 
 export default function Login({ onLogin }) {
@@ -43,6 +43,9 @@ export default function Login({ onLogin }) {
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
+        <p style={{ marginTop: '1rem', textAlign: 'center' }}>
+          Não tem conta? <Link to="/register">Cadastre-se</Link>
+        </p>
       </section>
     </main>
   )

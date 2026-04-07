@@ -31,6 +31,16 @@ export async function loginUser(username, password) {
   return response.data
 }
 
+export async function registerUser(username, email, password, passwordConfirm) {
+  const response = await client.post('/api/auth/register/', {
+    username,
+    email,
+    password,
+    password_confirm: passwordConfirm,
+  })
+  return response.data
+}
+
 export async function fetchCategorias() {
   const response = await client.get('/api/categorias/')
   return response.data
@@ -47,9 +57,10 @@ export async function fetchTransacoes(filters = {}) {
   return response.data
 }
 
-export async function uploadXlsx(file) {
+export async function uploadXlsx(file, ano) {
   const formData = new FormData()
   formData.append('file', file)
+  if (ano) formData.append('ano', ano)
   const response = await client.post('/api/importar/', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
