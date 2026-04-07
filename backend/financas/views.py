@@ -7,6 +7,8 @@ import openpyxl
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.db.models import Sum
+from django.db.models.functions import ExtractMonth
 from django_filters import rest_framework as filters
 from rest_framework import viewsets, permissions, status
 from rest_framework.filters import SearchFilter
@@ -24,7 +26,7 @@ MONTH_NAMES_PT = {
     'outubro': 10, 'novembro': 11, 'dezembro': 12,
 }
 
-IGNORED_SHEETS = {'gastos', 'acompanhamentos'}
+IGNORED_SHEETS = {'gastos e acompanhamentos'}
 
 
 def _normalize_cell(value):
@@ -86,6 +88,13 @@ def _find_header_row(rows):
     return None
 
 
+def _get_month_from_sheet(sheet_norm):
+    for month_name, month_number in MONTH_NAMES_PT.items():
+        if month_name in sheet_norm:
+            return month_number
+    return None
+
+
 def _get_category_name(category_row, start_col):
     if not category_row:
         return ''
@@ -134,6 +143,40 @@ class TransacaoViewSet(viewsets.ModelViewSet):
         return self.queryset.filter(usuario=self.request.user)
 
 
+class TransacaoResumoView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        year_param = request.query_params.get('year')
+        if year_param:
+            try:
+                year = int(year_param)
+            except ValueError:
+                return Response({'detail': 'Parametro "year" invalido.'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            year = datetime.date.today().year
+
+        base_qs = Transacao.objects.filter(usuario=request.user, data__year=year)
+        totals = base_qs.values('tipo').annotate(total=Sum('valor'))
+        receitas = next((item['total'] for item in totals if item['tipo'] == Categoria.RECEITA), Decimal('0'))
+        despesas = next((item['total'] for item in totals if item['tipo'] == Categoria.DESPESA), Decimal('0'))
+
+        monthly = base_qs.annotate(month=ExtractMonth('data')).values('month').annotate(total=Sum('valor'))
+        monthly_totals = [0.0] * 12
+        for item in monthly:
+            month_index = (item['month'] or 1) - 1
+            if 0 <= month_index < 12:
+                monthly_totals[month_index] = float(item['total'] or 0)
+
+        return Response({
+            'year': year,
+            'receitas': float(receitas or 0),
+            'despesas': float(despesas or 0),
+            'saldo': float((receitas or 0) - (despesas or 0)),
+            'monthly_totals': monthly_totals,
+        })
+
+
 class ImportXlsxView(APIView):
     parser_classes = [MultiPartParser, FormParser]
     permission_classes = [permissions.IsAuthenticated]
@@ -160,10 +203,10 @@ class ImportXlsxView(APIView):
         for sheet_name in workbook.sheetnames:
             sheet_norm = _normalize_cell(sheet_name)
 
-            if sheet_norm in IGNORED_SHEETS:
+            if sheet_norm in IGNORED_SHEETS or 'acompanhamento' in sheet_norm:
                 continue
 
-            mes_num = MONTH_NAMES_PT.get(sheet_norm)
+            mes_num = _get_month_from_sheet(sheet_norm)
             if mes_num is None:
                 continue
 
@@ -183,15 +226,13 @@ class ImportXlsxView(APIView):
                 if header != 'observacao':
                     continue
 
+                window_end = min(col_idx + 7, len(header_norm))
                 dia_col = next(
-                    (j for j in range(col_idx + 1, min(col_idx + 4, len(header_norm))) if header_norm[j] == 'dia'),
+                    (j for j in range(col_idx + 1, window_end) if header_norm[j] == 'dia'),
                     None,
                 )
                 val_col = next(
-                    (
-                        j for j in range(col_idx + 1, min(col_idx + 4, len(header_norm)))
-                        if _is_value_header(header_norm[j])
-                    ),
+                    (j for j in range(col_idx + 1, window_end) if _is_value_header(header_norm[j])),
                     None,
                 )
 

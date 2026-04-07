@@ -19,6 +19,10 @@ export default function Sidebar({ onLogout }) {
           <span className="nav-icon">📘</span>
           Apresentacao
         </NavLink>
+        <NavLink to="/categorias" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
+          <span className="nav-icon">🗂️</span>
+          Categorias
+        </NavLink>
         <button type="button" className="logout-button" onClick={onLogout}>
           <span className="nav-icon">⎋</span>
           Sair

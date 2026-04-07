@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
+import Categorias from './pages/Categorias'
 import { getToken, clearToken } from './api/financeApi'
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
         <Route path="/login" element={<Login onLogin={setToken} />} />
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard onLogout={handleLogout} token={token} />} />
+        <Route path="/categorias" element={<Categorias onLogout={handleLogout} token={token} />} />
       </Routes>
     </div>
   )

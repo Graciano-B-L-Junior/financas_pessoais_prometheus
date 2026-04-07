@@ -41,19 +41,27 @@ export async function registerUser(username, email, password, passwordConfirm) {
   return response.data
 }
 
-export async function fetchCategorias() {
-  const response = await client.get('/api/categorias/')
+export async function fetchCategorias({ page = 1, pageSize = 200 } = {}) {
+  const params = { page, page_size: pageSize }
+  const response = await client.get('/api/categorias/', { params })
   return response.data
 }
 
-export async function fetchTransacoes(filters = {}) {
-  const params = {}
+export async function fetchTransacoes(filters = {}, page = 1, pageSize = 10) {
+  const params = { page, page_size: pageSize }
   if (filters.nome) params.nome = filters.nome
   if (filters.data_min) params.data_min = filters.data_min
   if (filters.data_max) params.data_max = filters.data_max
   if (filters.categoria_id) params.categoria_id = filters.categoria_id
   if (filters.tipo) params.tipo = filters.tipo
   const response = await client.get('/api/transacoes/', { params })
+  return response.data
+}
+
+export async function fetchResumo(year) {
+  const params = {}
+  if (year) params.year = year
+  const response = await client.get('/api/transacoes/resumo/', { params })
   return response.data
 }
 

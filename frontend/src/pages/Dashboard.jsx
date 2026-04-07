@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
-import { fetchCategorias, fetchTransacoes, uploadXlsx } from '../api/financeApi'
+import { fetchCategorias, fetchResumo, fetchTransacoes, uploadXlsx } from '../api/financeApi'
 
 export default function Dashboard({ onLogout, token }) {
   const navigate = useNavigate()
@@ -10,6 +10,11 @@ export default function Dashboard({ onLogout, token }) {
   const [filters, setFilters] = useState({ nome: '', data_min: '', data_max: '', categoria_id: '' })
   const [uploadMessage, setUploadMessage] = useState('')
   const [uploadAno, setUploadAno] = useState(new Date().getFullYear())
+  const [summary, setSummary] = useState(null)
+  const [summaryYear] = useState(new Date().getFullYear())
+  const [page, setPage] = useState(1)
+  const [pageSize] = useState(10)
+  const [pageInfo, setPageInfo] = useState({ count: 0, next: null, prev: null })
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -20,23 +25,29 @@ export default function Dashboard({ onLogout, token }) {
 
   useEffect(() => {
     loadCategorias()
-    loadTransacoes(filters)
+    loadTransacoes(filters, 1)
+    loadResumo(summaryYear)
   }, [])
 
   const loadCategorias = async () => {
     try {
-      const data = await fetchCategorias()
-      setCategorias(data)
+      const data = await fetchCategorias({ pageSize: 200 })
+      setCategorias(data.results || data)
     } catch (error) {
       console.error(error)
     }
   }
 
-  const loadTransacoes = async (currentFilters) => {
+  const loadTransacoes = async (currentFilters, currentPage) => {
     setLoading(true)
     try {
-      const data = await fetchTransacoes(currentFilters)
+      const data = await fetchTransacoes(currentFilters, currentPage, pageSize)
       setTransacoes(data.results || data)
+      if (data.results) {
+        setPageInfo({ count: data.count, next: data.next, prev: data.previous })
+      } else {
+        setPageInfo({ count: data.length || 0, next: null, prev: null })
+      }
     } catch (error) {
       console.error(error)
     } finally {
@@ -44,10 +55,20 @@ export default function Dashboard({ onLogout, token }) {
     }
   }
 
+  const loadResumo = async (year) => {
+    try {
+      const data = await fetchResumo(year)
+      setSummary(data)
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
   const handleFilterChange = (key, value) => {
     const nextFilters = { ...filters, [key]: value }
     setFilters(nextFilters)
-    loadTransacoes(nextFilters)
+    setPage(1)
+    loadTransacoes(nextFilters, 1)
   }
 
   const handleUpload = async (event) => {
@@ -59,7 +80,7 @@ export default function Dashboard({ onLogout, token }) {
       if (response.errors?.length) {
         setUploadMessage((prev) => `${prev} ${response.errors.length} erros encontrados.`)
       }
-      loadTransacoes(filters)
+      loadTransacoes(filters, page)
     } catch (error) {
       setUploadMessage('Falha ao importar planilha.')
     }
@@ -74,6 +95,10 @@ export default function Dashboard({ onLogout, token }) {
     [transacoes],
   )
 
+  const resumoReceitas = summary?.receitas ?? totalReceitas
+  const resumoDespesas = summary?.despesas ?? totalDespesas
+  const resumoSaldo = summary?.saldo ?? totalReceitas - totalDespesas
+
   const formatter = useMemo(
     () => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }),
     [],
@@ -81,9 +106,28 @@ export default function Dashboard({ onLogout, token }) {
 
   const historyItems = useMemo(() => transacoes.slice(0, 6), [transacoes])
   const activityItems = useMemo(() => transacoes.slice(0, 4), [transacoes])
+  const totalPages = Math.max(1, Math.ceil(pageInfo.count / pageSize))
+
+  const handleNextPage = () => {
+    if (!pageInfo.next) return
+    const nextPage = page + 1
+    setPage(nextPage)
+    loadTransacoes(filters, nextPage)
+  }
+
+  const handlePrevPage = () => {
+    if (!pageInfo.prev) return
+    const prevPage = Math.max(1, page - 1)
+    setPage(prevPage)
+    loadTransacoes(filters, prevPage)
+  }
 
   const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
   const monthlyTotals = useMemo(() => {
+    if (summary?.monthly_totals?.length === 12) {
+      const maxValue = Math.max(...summary.monthly_totals, 1)
+      return { totals: summary.monthly_totals, maxValue }
+    }
     const totals = Array(12).fill(0)
     transacoes.forEach((item) => {
       if (!item.data) return
@@ -93,7 +137,7 @@ export default function Dashboard({ onLogout, token }) {
     })
     const maxValue = Math.max(...totals, 1)
     return { totals, maxValue }
-  }, [transacoes])
+  }, [summary, transacoes])
 
   return (
     <div className="dashboard-shell">
@@ -124,15 +168,15 @@ export default function Dashboard({ onLogout, token }) {
             <section className="cards-row">
               <div className="metric-card">
                 <span>Receitas</span>
-                <strong>{formatter.format(totalReceitas)}</strong>
+                <strong>{formatter.format(resumoReceitas)}</strong>
               </div>
               <div className="metric-card">
                 <span>Despesas</span>
-                <strong>{formatter.format(totalDespesas)}</strong>
+                <strong>{formatter.format(resumoDespesas)}</strong>
               </div>
               <div className="metric-card">
                 <span>Saldo</span>
-                <strong>{formatter.format(totalReceitas - totalDespesas)}</strong>
+                <strong>{formatter.format(resumoSaldo)}</strong>
               </div>
             </section>
 
@@ -256,6 +300,19 @@ export default function Dashboard({ onLogout, token }) {
                   </tbody>
                 </table>
               )}
+              <div className="table-footer">
+                <span>
+                  Pagina {page} de {totalPages}
+                </span>
+                <div className="pager">
+                  <button type="button" onClick={handlePrevPage} disabled={!pageInfo.prev}>
+                    Anterior
+                  </button>
+                  <button type="button" onClick={handleNextPage} disabled={!pageInfo.next}>
+                    Proxima
+                  </button>
+                </div>
+              </div>
             </section>
           </section>
 
